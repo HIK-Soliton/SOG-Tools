@@ -1,0 +1,634 @@
+# 初期設定
+$apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJTb2xpdG9uIiwic3ViIjoiT25lR2F0ZUFwaSIsImlhdCI6MTc0MjgwMzg3OSwianRpIjoiYTJjZDhhMDAtNjlmMy00MzBiLTgxNjYtNTQ1NzE3ODk0NDQyIiwiYXVkIjoic29nYWRtaW4iLCJzaXRlSWQiOjEsInJvbGUiOiJST0xFX1NJVEVBRE1JTiIsInVzZXJJZCI6MTd9.1XRPn15nKK4DEzT0pRMPDL-E8eG-uzBbUw5ZSgTm2Fs"
+$baseUri = "https://apitest.ids-dev.solitonsys.jp"
+$boundary = "680dd7c4-82ea-4e5e-8b84-245e5b5fc0e0"
+$LF = "`r`n"
+
+# 検索データ型取得
+$uri = $baseUri + "/icon/services/commonservice/site/1/master/search-data-type?key=searchDataTypeId&value=101"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey"; "Accept-Language" = "ja-JP" } -Method $method -Body $body
+$result = ($result.Content | ConvertFrom-Json).responseBody
+
+# 管理ログ検索
+$uri = $baseUri + "/icon/services/seap/api/logs/managed?max=2&pageNo=1&key=log_timestamp&value=2025/03/01-2025/03/31"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 検索キー取得
+$uri = $baseUri + "/icon/services/seap/api/logs/managed/search/columns"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 管理ログ詳細検索
+$uri = $baseUri + "/icon/services/seap/api/logs/managed/search"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+	"max": 2,
+    "pageNo": 1,
+    "sortKey": "log_timestamp",
+    "sortOrder": "DESC",
+    "operator": "and",
+    "conditionArgsList": [
+        {
+            "searchColumnId": 2070108,
+            "searchColumnSubId": null,
+            "value": "2025/03/01",
+            "searchType": "321"
+        },
+        {
+            "searchColumnId": 2070108,
+            "searchColumnSubId": null,
+            "value": "2025/03/31",
+            "searchType": "322"
+        }
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 管理ログエクスポート（簡易検索）
+$uri = $baseUri + "/icon/services/seap/api/logs/managed/export?key=log_timestamp&value=2025/03/31-2025/03/31"
+$uri = $baseUri + "/icon/services/seap/api/logs/managed/export?key=log_timestamp&value=2025/03/29"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+
+# 管理ログエクスポート（詳細検索）
+$uri = $baseUri + "/icon/services/seap/api/logs/managed/export/search"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+    "sortKey": "log_timestamp",
+    "sortOrder": "DESC",
+    "operator": "and",
+    "conditionArgsList": [
+        {
+            "searchColumnId": 2070108,
+            "searchColumnSubId": null,
+            "value": "2025/03/31 11:57:00",
+            "searchType": "321"
+        },
+        {
+            "searchColumnId": 2070108,
+            "searchColumnSubId": null,
+            "value": "2025/03/31 12:10:00",
+            "searchType": "322"
+        }
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+
+
+
+
+# 管理者ログインログ検索
+$uri = $baseUri + "/icon/services/seap/api/logs/login/manager?max=20&pageNo=1&key=log_timestamp&value=2025/03/01-2025/03/31"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 検索キー取得
+$uri = $baseUri + "/icon/services/seap/api/logs/login/manager/search/columns"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 管理者ログインログ詳細検索
+$uri = $baseUri + "/icon/services/seap/api/logs/login/manager/search"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+    "max": 20,
+    "pageNo":  1,
+    "sortKey": "log_timestamp",
+    "sortOrder": "DESC",
+    "operator": "and",
+    "conditionArgsList": [
+        {
+            "searchColumnId": 1030305,
+            "searchColumnSubId": null,
+            "value": "IM-605-I-001000",
+            "searchType": 201
+        },
+        {
+            "searchColumnId": 1030309,
+            "searchColumnSubId": null,
+            "value": "2025/03/01",
+            "searchType": "321"
+        },
+        {
+            "searchColumnId": 1030309,
+            "searchColumnSubId": null,
+            "value": "2025/04/03",
+            "searchType": "422"
+        }
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 管理者ログインログエクスポート（簡易検索）
+$uri = $baseUri + "/icon/services/seap/api/logs/login/manager/export?key=log_timestamp&value=2025/03/24+18:35:01"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+
+# 管理者ログインログエクスポート（詳細検索）
+$uri = $baseUri + "/icon/services/seap/api/logs/login/manager/export/search"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+    "sortKey": "log_timestamp",
+    "sortOrder": "DESC",
+    "operator": "and",
+    "conditionArgsList": [
+        {
+            "searchColumnId": 1030305,
+            "searchColumnSubId": null,
+            "value": "IM-605-I-001000",
+            "searchType": 201
+        },
+        {
+            "searchColumnId": 1030309,
+            "searchColumnSubId": null,
+            "value": "2025/04/01 14:48:12",
+            "searchType": "101"
+        }
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+
+
+# 利用者ログインログ検索
+$uri = $baseUri + "/icon/services/seap/api/logs/login/employee?max=1&pageNo=1&key=log_timestamp&value=2025/04/03-"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey"; "Accept-Language" = "ja-JP" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 検索キー取得
+$uri = $baseUri + "/icon/services/seap/api/logs/login/employee/search/columns"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 利用者ログインログ詳細検索
+$uri = $baseUri + "/icon/services/seap/api/logs/login/employee/search"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+    "max": 2,
+    "pageNo":  1,
+    "sortKey": "log_timestamp",
+    "sortOrder": "DESC",
+    "operator": "and",
+    "conditionArgsList": [
+        {
+            "searchColumnId": 2070306,
+            "searchColumnSubId": null,
+            "value": "Success",
+            "notFlag": true,
+            "searchType": 202
+        },
+        {
+            "searchColumnId": 2070326,
+            "searchColumnSubId": null,
+            "value": "2025/03/01",
+            "searchType": "321"
+        },
+        {
+            "searchColumnId": 2070326,
+            "searchColumnSubId": null,
+            "value": "2025/04/03",
+            "searchType": "422"
+        }
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 利用者ログインログエクスポート（簡易検索）
+$uri = $baseUri + "/icon/services/seap/api/logs/login/employee/export?max=20&pageNo=1&key=log_timestamp&value=2025/04/01-"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+
+# 利用者ログインログエクスポート（詳細検索）
+$uri = $baseUri + "/icon/services/seap/api/logs/login/employee/export/search"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+    "max": 2,
+    "pageNo":  1,
+    "sortKey": "log_timestamp",
+    "sortOrder": "DESC",
+    "operator": "and",
+    "conditionArgsList": [
+        {
+            "searchColumnId": 2070306,
+            "searchColumnSubId": null,
+            "value": "Success",
+            "notFlag": true,
+            "searchType": 202
+        },
+        {
+            "searchColumnId": 2070326,
+            "searchColumnSubId": null,
+            "value": "2025/04/01",
+            "searchType": "321"
+        },
+        {
+            "searchColumnId": 2070326,
+            "searchColumnSubId": null,
+            "value": "2025/04/03",
+            "searchType": "422"
+        }
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+
+# 追加認証ログ取得
+$uri = $baseUri + "/icon/services/seap/api/logs/login/employee/33/additional"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 利用者操作ログ検索
+$uri = $baseUri + "/icon/services/seap/api/logs/employee?key=name&value=tyamada"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey"; "Accept-Language" = "ja-JP" } -Method $method -Body $body
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 検索キー取得
+$uri = $baseUri + "/icon/services/seap/api/logs/employee/search/columns"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey"; "Accept-Language" = "ja-JP" } -Method $method -Body $body
+$result = ($result.Content | ConvertFrom-Json).responseBody
+$result | % {
+	$outRecode = @($_.name, $_.searchColumnId, $_.searchColumnSubId, $_.searchDataTypeId) -join ","
+	$outRecode
+}
+
+# 利用者操作ログ詳細検索
+$uri = $baseUri + "/icon/services/seap/api/logs/employee/search"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+    "pageNo": "1",
+    "sortKey": "log_timestamp",
+    "sortOrder": "DESC",
+    "operator": "and",
+    "conditionArgsList": [
+        {
+            "searchColumnId": 2071150,
+            "searchColumnSubId": 47,
+            "value": "yamada",
+            "searchType": "211"
+        },
+        {
+            "searchColumnId": 2071150,
+            "searchColumnSubId": 52,
+            "value": "Sales",
+            "searchType": "202"
+        }
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 利用者操作ログエクスポート（簡易検索）
+$uri = $baseUri + "/icon/services/seap/api/logs/employee/export?max=20&pageNo=1&key=name&value=tyamada"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content > ./temp.txt
+
+# 利用者操作ログエクスポート（詳細検索）
+$uri = $baseUri + "/icon/services/seap/api/logs/employee/export/search"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+    "max": 2,
+    "pageNo":  1,
+    "sortKey": "log_timestamp",
+    "sortOrder": "DESC",
+    "operator": "and",
+    "conditionArgsList": [
+        {
+            "searchColumnId": 2071150,
+            "searchColumnSubId": 46,
+            "value": "tyamada",
+            "searchType": 211
+        },
+        {
+            "searchColumnId": 2071106,
+            "searchColumnSubId": null,
+            "value": "2025/03/28",
+            "searchType": "321"
+        }
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+
+
+# 同期実行ログ検索
+$uri = $baseUri + "/icon/services/seap/api/tasks/summary?max=20&key=status&value=Failed"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey"; "Accept-Language" = "ja-JP" } -Method $method -Body $body
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 検索キー取得
+$uri = $baseUri + "/icon/services/seap/api/tasks/summary/search/columns"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey"; "Accept-Language" = "ja-JP" } -Method $method -Body $body
+$result = ($result.Content | ConvertFrom-Json).responseBody
+$result | % {
+	$outRecode = @($_.name, $_.searchColumnId, $_.searchColumnSubId, $_.searchDataTypeId) -join ","
+	$outRecode
+}
+
+<#
+同期処理ID,2061101,,202
+同期設定名,2061102,,101
+同期設定コード,2061103,,101
+実行種別,2061104,,101
+実行管理者,2061105,,101
+中止管理者,2061110,,101
+同期状況,2061106,,101
+同期開始日時,2061108,,501
+同期終了日時,2061109,,501
+処理ID,2061121,,202
+処理名,2061122,,101
+処理状況,2061123,,101
+処理開始日時,2061125,,501
+処理終了日時,2061126,,501
+対象名,2061131,,101
+実行ID,2061152,,202
+実行状況,2061153,,101
+実行開始日時,2061155,,501
+実行終了日時,2061156,,501
+結果コード,2061157,,101
+結果メッセージ,2061158,,101
+エラー詳細,2061159,,101
+リクエストID,2061166,,202
+#>
+
+# 同期実行ログ詳細検索
+$uri = $baseUri + "/icon/services/seap/api/tasks/summary/search"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+    "pageNo": "1",
+    "sortKey": "log_timestamp",
+    "sortOrder": "DESC",
+    "operator": "and",
+    "conditionArgsList": [
+        {
+            "searchColumnId": 2061106,
+            "searchColumnSubId": null,
+            "value": "Failed",
+            "searchType": "201"
+        },
+        {
+            "searchColumnId": 2061155,
+            "searchColumnSubId": null,
+            "value": "2025/03/25",
+            "searchType": "321"
+        }
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 同期実行ログエクスポート（簡易検索）
+$uri = $baseUri + "/icon/services/seap/api/tasks/summary/export?key=status&value=Failed"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+
+# 同期実行ログエクスポート（詳細検索）
+$uri = $baseUri + "/icon/services/seap/api/tasks/summary/export/search"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+    "pageNo": "1",
+    "sortKey": "log_timestamp",
+    "sortOrder": "DESC",
+    "operator": "and",
+    "conditionArgsList": [
+        {
+            "searchColumnId": 2061106,
+            "searchColumnSubId": null,
+            "value": "Failed",
+            "searchType": "201"
+        },
+        {
+            "searchColumnId": 2061155,
+            "searchColumnSubId": null,
+            "value": "2025/03/25",
+            "searchType": "321"
+        }
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+
+
+# SSOアクセスログ検索
+$uri = $baseUri + "/icon/services/seap/api/logs/sso?max=2&key=login_name&value=tyamada"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey"; "Accept-Language" = "ja-JP" } -Method $method -Body $body
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 検索キー取得
+$uri = $baseUri + "/icon/services/seap/api/logs/sso/search/columns"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey"; "Accept-Language" = "ja-JP" } -Method $method -Body $body
+$result = ($result.Content | ConvertFrom-Json).responseBody
+$result | % {
+	$outRecode = @($_.name, $_.searchColumnId, $_.searchColumnSubId, $_.searchDataTypeId) -join ","
+	$outRecode
+}
+
+<#
+ログイン名,2070401,,101
+接続先サービス,2070402,,101
+サービスアカウント,2070403,,101
+ログコード,2070404,,101
+内容,2070405,,101
+接続元アドレス,2070406,,301
+クライアント情報,2070407,,101
+認証プロトコル,2070417,,101
+プライベートIP,2070408,,301
+マシン名,2070409,,101
+SSOユーザー名,2070410,,101
+アプリケーション名,2070411,,101
+URL,2070412,,101
+設定名,2070413,,101
+詳細ログ,2070414,,101
+処理日時,2070416,,501
+#>
+
+# SSOアクセスログ詳細検索
+$uri = $baseUri + "/icon/services/seap/api/logs/sso/search"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+    "pageNo": "1",
+    "sortKey": "log_timestamp",
+    "sortOrder": "DESC",
+    "operator": "and",
+    "conditionArgsList": [
+        {
+            "searchColumnId": 2070401,
+            "searchColumnSubId": null,
+            "value": "tyamada",
+            "searchType": "201"
+        },
+        {
+            "searchColumnId": 2070402,
+            "searchColumnSubId": null,
+            "value": "Google",
+            "searchType": "202"
+        }
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# SSOアクセスログエクスポート（簡易検索）
+$uri = $baseUri + "/icon/services/seap/api/logs/sso/export?key=login_name&value=tyamada"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+
+# SSOアクセスログエクスポート（詳細検索）
+$uri = $baseUri + "/icon/services/seap/api/logs/sso/export/search"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+    "pageNo": "1",
+    "sortKey": "log_timestamp",
+    "sortOrder": "DESC",
+    "operator": "and",
+    "conditionArgsList": [
+        {
+            "searchColumnId": 2070401,
+            "searchColumnSubId": null,
+            "value": "tyamada",
+            "searchType": "201"
+        },
+        {
+            "searchColumnId": 2070402,
+            "searchColumnSubId": null,
+            "value": "Google",
+            "searchType": "202"
+        }
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content

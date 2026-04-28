@@ -1,0 +1,148 @@
+# 初期設定
+$apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJTb2xpdG9uIiwic3ViIjoiT25lR2F0ZUFwaSIsImlhdCI6MTc0MjgwMzg3OSwianRpIjoiYTJjZDhhMDAtNjlmMy00MzBiLTgxNjYtNTQ1NzE3ODk0NDQyIiwiYXVkIjoic29nYWRtaW4iLCJzaXRlSWQiOjEsInJvbGUiOiJST0xFX1NJVEVBRE1JTiIsInVzZXJJZCI6MTd9.1XRPn15nKK4DEzT0pRMPDL-E8eG-uzBbUw5ZSgTm2Fs"
+$baseUri = "https://apitest.ids-dev.solitonsys.jp"
+$boundary = "680dd7c4-82ea-4e5e-8b84-245e5b5fc0e0"
+$LF = "`r`n"
+
+# 招待設定一覧取得
+$uri = $baseUri + "/icon/services/seap/api/certificate/invitation-settings"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 招待コード一覧取得
+$uri = $baseUri + "/icon/services/seap/api/certificate/invitations?max=20&pageNo=1&expireDays=30"
+$uri = $baseUri + "/icon/services/seap/api/certificate/invitations"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 招待コード発行
+$uri = $baseUri + "/icon/services/seap/api/certificate/invitations/2"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+[
+    {
+        "employeeId": 1
+    },
+    {
+        "employeeId": 2
+    },
+    {
+        "employeeId": 3
+    }
+]
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 招待コード無効化
+$uri = $baseUri + "/icon/services/seap/api/certificate/invitations/2/revoke"
+$method = "POST"
+$contentType = "application/json"
+$body = @{}
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 招待コード一括発行
+$file = "C:\Users\hiki.FOURSEASONS\Downloads\OneGateCertificateInvitationUsers.csv"
+$tmpfile = "C:\Users\hiki.FOURSEASONS\Downloads\temp.csv"
+$filename = (Get-Item $file).Name
+$fileBin = [System.IO.File]::ReadAllText($file)
+
+(
+  "--$boundary",
+  "Content-Disposition: form-data; name=`"type`"$LF",
+  "2",
+  "--$boundary",
+  "Content-Disposition: form-data; name=`"file`"; filename=`"$filename`"",
+  "Content-Type: text/csv$LF",
+    $fileBin,
+    "--$boundary--$LF"
+) -join $LF | Set-Content $tmpfile -Encoding UTF8
+
+$uri = $baseUri + "/icon/services/seap/api/certificate/invitations/users/import"
+$contentType = "multipart/form-data; boundary=$boundary"
+$method = "POST"
+
+$result = Invoke-Restmethod -Uri $uri `
+    -ContentType $contentType `
+    -Method $method `
+    -Headers  @{ Authorization = "Bearer $apiKey"} `
+    -inFile $tmpfile
+$result
+
+# 証明書一覧取得
+$uri = $baseUri + "/icon/services/seap/api/certificate/certificates?max=20&pageNo=1&status=1"
+$uri = $baseUri + "/icon/services/seap/api/certificate/certificates"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 証明書詳細情報取得
+$uri = $baseUri + "/icon/services/seap/api/certificate/certificates/1"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 証明書詳細失効
+$uri = $baseUri + "/icon/services/seap/api/certificate/certificates/1/revoke"
+$method = "POST"
+$contentType = ""
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result = Invoke-WebRequest $uri -Headers @{ Authorization = "Bearer $apiKey" } -Method $method
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 証明書エクスポート
+$uri = $baseUri + "/icon/services/seap/api/certificate/certificates/export?status=1&encodingId=30"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+
+# CRL強制適用実施
+$uri = $baseUri + "/icon/services/seap/api/certificate/authority/crl/refresh"
+$method = "POST"
+$body = @{}
+$result = Invoke-WebRequest $uri -Headers @{ Authorization = "Bearer $apiKey" } -Method $method
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 証明書ログ検索
+$uri = $baseUri + "/icon/services/seap/api/certificate/certificates/logs?max=20&pageNo=1&log=1"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 証明書ログ詳細取得
+$uri = $baseUri + "/icon/services/seap/api/certificate/certificates/logs/1"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# 証明書ログエクスポート
+$uri = $baseUri + "/icon/services/seap/api/certificate/certificates/logs/export?max=20&pageNo=1&log=1"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100

@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtualenv
+venv/
+.env/
+
+# Secrets
+*.key
+*.pem
+*.crt
+*.cer
+*.inf
+*.der
+*.csr
+config.json
+req.cnf
+ChromeOS_SKMSetting_json.txt
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test outputs
+*.log
+*.csv
+*.json

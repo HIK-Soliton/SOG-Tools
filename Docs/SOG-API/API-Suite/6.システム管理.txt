@@ -1,0 +1,71 @@
+# ‰Šúİ’è
+$apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJTb2xpdG9uIiwic3ViIjoiT25lR2F0ZUFwaSIsImlhdCI6MTc0MjgwMzg3OSwianRpIjoiYTJjZDhhMDAtNjlmMy00MzBiLTgxNjYtNTQ1NzE3ODk0NDQyIiwiYXVkIjoic29nYWRtaW4iLCJzaXRlSWQiOjEsInJvbGUiOiJST0xFX1NJVEVBRE1JTiIsInVzZXJJZCI6MTd9.1XRPn15nKK4DEzT0pRMPDL-E8eG-uzBbUw5ZSgTm2Fs"
+$baseUri = "https://apitest.ids-dev.solitonsys.jp"
+$boundary = "680dd7c4-82ea-4e5e-8b84-245e5b5fc0e0"
+$LF = "`r`n"
+
+# ˆÏ”CŠÇ—ÒŒŸõ
+$uri = $baseUri + "/icon/services/seap/api/manager/delegate"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# ˆÏ”CŠÇ—Òî•ñæ“¾
+$uri = $baseUri + "/icon/services/seap/api/manager/delegate/18"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+
+# ˆÏ”CŠÇ—Ò“o˜^
+$uri = $baseUri + "/icon/services/seap/api/manager/delegate"
+$method = "POST"
+$contentType = "application/json"
+
+$body = @"
+{
+    "loginName": "tyamada@example.com",
+    "emailAddress": "tyamada@example.com",
+    "authorityList": [],
+    "description": "",
+    "password": "SolitonP@ss",
+    "tagList": [
+        "‰c‹Æ•”"
+    ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# ˆÏ”CŠÇ—ÒXV
+$uri = $baseUri + "/icon/services/seap/api/manager/delegate/19"
+$method = "PUT"
+$contentType = "application/json"
+
+$body = @"
+{
+    "emailAddress": "tyamada@example.com",
+    "description": "",
+    "tagList": [
+        "‰c‹Æ•”"
+    ],
+    "authorityList": [
+        "ROLE_SITEADMIN_DELEGATE_LOG"
+    ]
+}
+"@
+
+# ƒ^ƒCƒ€ƒ][ƒ“ˆê——æ“¾
+# ˆÏ”CŠÇ—Òî•ñæ“¾
+$uri = $baseUri + "/icon/services/commonservice/site/1/timezone"
+$method = "GET"
+$contentType = "text/plain"
+$body = @{}
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+

@@ -1,0 +1,408 @@
+# 初期設定
+$apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJTb2xpdG9uIiwic3ViIjoiT25lR2F0ZUFwaSIsImlhdCI6MTc0MjgwMzg3OSwianRpIjoiYTJjZDhhMDAtNjlmMy00MzBiLTgxNjYtNTQ1NzE3ODk0NDQyIiwiYXVkIjoic29nYWRtaW4iLCJzaXRlSWQiOjEsInJvbGUiOiJST0xFX1NJVEVBRE1JTiIsInVzZXJJZCI6MTd9.1XRPn15nKK4DEzT0pRMPDL-E8eG-uzBbUw5ZSgTm2Fs"
+$baseUri = "https://apitest.ids-dev.solitonsys.jp"
+
+
+# 結果取得と表示
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+
+
+
+# 利用者検索
+$uri = $baseUri + "/icon/services/seap/api/employee"
+$body = @{ key = "name"; value = "soliton001" }
+$contentType = "text/plain"
+$method = "GET"
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 利用者情報取得
+$uri = $baseUri + "/icon/services/seap/api/employee/1"
+$body = @{}
+$contentType = "text/plain"
+$method = "GET"
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 利用者登録
+$uri = $baseUri + "/icon/services/seap/api/employee"
+$contentType = "application/json"
+$method = "POST"
+
+$body = @"
+{
+    "defAttributes":  [
+                          {
+                              "attributeId":  46,
+                              "value":  [
+                                            {
+                                                "value":  "tyamada"
+                                            }
+                                        ]
+                          },
+                          {
+                              "attributeId":  47,
+                              "value":  [
+                                            {
+                                                "value":  "yamada"
+                                            }
+                                        ]
+                          },
+                          {
+                              "attributeId":  48,
+                              "value":  [
+                                            {
+                                                "value":  "taro"
+                                            }
+                                        ]
+                          },
+                          {
+                              "attributeId":  49,
+                              "value":  [
+                                            {
+                                                "value":  "tyamada@example.com"
+                                            }
+                                        ]
+                          },
+                          {
+                              "attributeId":  50,
+                              "value":  [
+                                            {
+                                                "value":  "ja"
+                                            }
+                                        ]
+                          },
+                          {
+                              "attributeId":  51,
+                              "value":  [
+                                            {
+                                                "value":  "Asia/Tokyo"
+                                            }
+                                        ]
+                          }
+                      ],
+    "actAttributes":  [
+
+                      ],
+    "pwdAttributes":  [
+                          {
+                              "attributeId":  86,
+                              "value":  [
+                                            {
+                                                "value":  "ZuT8DLGSTE=S"
+                                            }
+                                        ]
+                          }
+                      ],
+    "ssoAttributes":  [
+                          {
+                              "attributeId":  54,
+                              "value":  [
+                                            {
+                                                "value":  "tyamada"
+                                            }
+                                        ]
+                          }
+                      ],
+    "optionalAttributes":  [
+                               {
+                                   "attributeId":  105,
+                                   "value":  [
+                                                 {
+                                                     "value":  "Tokyo Head Office"
+                                                 }
+                                             ]
+                               },
+                               {
+                                   "attributeId":  106,
+                                   "value":  [
+                                                 {
+                                                     "value":  "apple"
+                                                 },
+                                                 {
+                                                     "value":  "orange"
+                                                 },
+                                                 {
+                                                     "value":  "grape"
+                                                 }
+                                             ]
+                               }
+                      ],
+    "tagAttributes":  [
+                          {
+                              "attributeId":  52,
+                              "value":  [
+                                            {
+                                                "value":  "Sales Department"
+                                            },
+                                            {
+                                                "value":  "Section Manager"
+                                            }
+                                        ]
+                          }
+                      ],
+    "loginChangePasswordFlag":  true,
+    "applicationRoleList":  [
+                                {
+                                    "cloudServiceId":  10
+                                },
+                                {
+                                    "cloudServiceId":  100
+                                }
+                      ],
+    "webApplicationRoleList":  [
+                                   {
+                                       "webApplicationId":  38
+                                   },
+                                   {
+                                       "webApplicationId":  45
+                                   }
+                      ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 利用者更新
+$employeeId = 102
+$uri = $baseUri + "/icon/services/seap/api/employee/$employeeId"
+$contentType = "application/json"
+$method = "PUT"
+
+$body = @"
+{
+    "employeeId": $employeeId,
+    "defAttributes":  [
+                          {
+                              "attributeId":  49,
+                              "value":  [
+                                            {
+                                                "value":  "taro.yamada@example.com"
+                                            }
+                                        ]
+                          }
+                    ],
+    "optionalAttributes":  [
+                               {
+                                   "attributeId":  105,
+                                   "value":  [
+                                                 {
+                                                     "value":  "Osaka Office"
+                                                 }
+                                             ]
+                               },
+                               {
+                                   "attributeId":  106,
+                                   "value":  [
+                                                 {
+                                                     "value":  "apple"
+                                                 },
+                                                 {
+                                                     "value":  "pine"
+                                                 }
+                                             ]
+                               }
+                      ],
+    "tagAttributes":  [
+                          {
+                              "attributeId":  52,
+                              "value":  [
+                                            {
+                                                "value":  "Osaka Sales"
+                                            },
+                                            {
+                                                "value":  "Section Manager"
+                                            }
+                                        ]
+                          }
+                      ],
+    "webApplicationRoleList":  [
+                      ]
+}
+"@
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 利用者削除
+$employeeId = 102
+$uri = $baseUri + "/icon/services/seap/api/employee/$employeeId"
+$contentType = "text/plain"
+$method = "DELETE"
+$body = @{}
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
+($result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# 利用者インポート
+$file = "C:\Users\hiki.FOURSEASONS\Downloads\OneGateUser.csv"
+$tmpfile = "./" + (Get-Date -format "yyyyMMddHHmmss") + ".csv"
+$fileBin = [System.IO.File]::ReadAllText($file)
+$boundary = [System.Guid]::NewGuid().ToString()
+$LF = "`r`n"
+
+(
+  "--$boundary",
+  "Content-Disposition: form-data; name=`"encodingId`"$LF",
+  "30",
+  "--$boundary",
+  "Content-Disposition: form-data; name=`"file`"; filename=`"OneGateUser.csv`"",
+  "Content-Type: application/octet-stream$LF",
+    $fileBin,
+    "--$boundary--$LF"
+) -join $LF | Set-Content $tmpfile -Encoding UTF8
+
+$uri = $baseUri + "/icon/services/seap/api/employee/import"
+$contentType = "multipart/form-data; boundary=$boundary"
+$method = "POST"
+
+$result = Invoke-Restmethod -Uri $uri `
+    -ContentType $contentType `
+    -Method $method `
+    -Headers  @{ Authorization = "Bearer $apiKey"} `
+    -inFile $tmpfile
+
+# 利用者エクスポート
+$uri = $baseUri + "/icon/services/seap/api/employee/export?encodingId=30&key=name&value=tyamada"
+$body = @{}
+
+$uri = $baseUri + "/icon/services/seap/api/employee/export"
+$body = @{ encodingId=30;
+	key="name";
+	value="tyamada"
+}
+
+$method = "GET"
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+$result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# アプリケーションロールインポート
+$file = "C:\Users\hiki.FOURSEASONS\Downloads\OneGateUserCloudServiceRole.csv"
+$tmpfile = "./" + (Get-Date -format "yyyyMMddHHmmss") + ".csv"
+$fileBin = [System.IO.File]::ReadAllText($file)
+$boundary = [System.Guid]::NewGuid().ToString()
+$LF = "`r`n"
+
+(
+  "--$boundary",
+  "Content-Disposition: form-data; name=`"encodingId`"$LF",
+  "30",
+  "--$boundary",
+  "Content-Disposition: form-data; name=`"file`"; filename=`"OneGateUserCloudServiceRole.csv`"",
+  "Content-Type: application/octet-stream$LF",
+    $fileBin,
+    "--$boundary--$LF"
+) -join $LF | Set-Content $tmpfile -Encoding UTF8
+
+$uri = $baseUri + "/icon/services/seap/api/employee/role/cloud/import"
+$contentType = "multipart/form-data; boundary=$boundary"
+$method = "POST"
+
+$result = Invoke-Restmethod -Uri $uri `
+    -ContentType $contentType `
+    -Method $method `
+    -Headers  @{ Authorization = "Bearer $apiKey"} `
+    -inFile $tmpfile
+
+# アプリケーションロールエクスポート
+$uri = $baseUri + "/icon/services/seap/api/employee/role/cloud/export?encodingId=30&key=name&value=tyamada"
+$body = @{}
+$method = "GET"
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+$result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# Webアプリインポート
+$file = "C:\Users\hiki.FOURSEASONS\Downloads\OneGateUserWebSsoRole.csv"
+$tmpfile = "./" + (Get-Date -format "yyyyMMddHHmmss") + ".csv"
+$fileBin = [System.IO.File]::ReadAllText($file)
+$boundary = [System.Guid]::NewGuid().ToString()
+$LF = "`r`n"
+
+(
+  "--$boundary",
+  "Content-Disposition: form-data; name=`"encodingId`"$LF",
+  "30",
+  "--$boundary",
+  "Content-Disposition: form-data; name=`"file`"; filename=`"OneGateUserWebSsoRole.csv`"",
+  "Content-Type: application/octet-stream$LF",
+    $fileBin,
+    "--$boundary--$LF"
+) -join $LF | Set-Content $tmpfile -Encoding UTF8
+
+$uri = $baseUri + "/icon/services/seap/api/employee/role/web/import"
+$contentType = "multipart/form-data; boundary=$boundary"
+$method = "POST"
+
+$result = Invoke-Restmethod -Uri $uri `
+    -ContentType $contentType `
+    -Method $method `
+    -Headers  @{ Authorization = "Bearer $apiKey"} `
+    -inFile $tmpfile
+
+# Webアプリエクスポート
+$uri = $baseUri + "/icon/services/seap/api/employee/role/web/export?encodingId=30&key=name&value=tyamada"
+$body = @{}
+$method = "GET"
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+$result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# ICカード割り当てインポート
+$file = "C:\Users\hiki.FOURSEASONS\Downloads\OneGateUserIcCard.csv"
+$tmpfile = "./" + (Get-Date -format "yyyyMMddHHmmss") + ".csv"
+$fileBin = [System.IO.File]::ReadAllText($file)
+$boundary = [System.Guid]::NewGuid().ToString()
+$LF = "`r`n"
+
+(
+  "--$boundary",
+  "Content-Disposition: form-data; name=`"encodingId`"$LF",
+  "30",
+  "--$boundary",
+  "Content-Disposition: form-data; name=`"file`"; filename=`"OneGateUserIcCard.csv`"",
+  "Content-Type: application/octet-stream$LF",
+    $fileBin,
+    "--$boundary--$LF"
+) -join $LF | Set-Content $tmpfile -Encoding UTF8
+
+$uri = $baseUri + "/icon/services/seap/api/employee/ic-card/import"
+$contentType = "multipart/form-data; boundary=$boundary"
+$method = "POST"
+
+$result = Invoke-Restmethod -Uri $uri `
+    -ContentType $contentType `
+    -Method $method `
+    -Headers  @{ Authorization = "Bearer $apiKey"} `
+    -inFile $tmpfile
+
+# ICカード割り当てエクスポート
+$uri = $baseUri + "/icon/services/seap/api/employee/ic-card/export?encodingId=30&key=name&value=tyamada"
+$body = @{}
+$method = "GET"
+
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+$result.Content
+$result.Content | ConvertFrom-Json).errorInfo | ConvertTo-Json -Depth 100
+
+# クラウドサービス一覧
+$uri = $baseUri + "/icon/services/seap/api/cloud/list?cloudServiceName=CloudService"
+$body = @{}
+$method = "GET"
+$result = Invoke-WebRequest $uri -ContentType $contentType -Headers @{ Authorization = "Bearer $apiKey" } -Method $method -Body $body
+($result.Content | ConvertFrom-Json).responseBody | ConvertTo-Json -Depth 100
