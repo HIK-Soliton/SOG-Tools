@@ -10,11 +10,18 @@
     - デフォルト：既に登録されているユーザーは完全にスキップ
     - UpdateExistingUsers スイッチ有効時：既存ユーザーにもグループ追加処理を実行
     
-    アクセストークンの自動管理：
-    - トークンの有効期限を自動的に監視
-    - 有効期限の5分前に自動的に再取得
+    MSAL.PSによるトークン自動管理：
+    - MSAL (Microsoft Authentication Library) を使用
+    - トークンのキャッシュと自動更新
+    - 有効期限切れ前の自動リフレッシュ
     - 大量ユーザー作成時の401エラーを防止
 #>
+
+# 共通ライブラリの読み込み
+. "$PSScriptRoot\lib\EntraIDLib.ps1"
+
+# MSAL.PSモジュールの初期化
+Initialize-MsalModule
 
 [CmdletBinding()]
 param(
@@ -50,73 +57,15 @@ $GroupCount  = 1
 # ===== ログ =====
 $LogFile = ".\create_users$(Get-Date -Format 'yyyyMMddHHmmss').log"
 
-# アクセストークン取得関数（有効期限も取得）
-function Get-AccessToken {
-    param(
-        [string]$TenantDomain,
-        [string]$ClientId,
-        [string]$ClientSecret
-    )
-    
-    try {
-        $TokenResponse = Invoke-RestMethod `
-          -Uri "https://login.microsoftonline.com/$TenantDomain/oauth2/v2.0/token" `
-          -Method POST `
-          -ContentType "application/x-www-form-urlencoded" `
-          -TimeoutSec 30 `
-          -Body @{
-              client_id     = $ClientId
-              client_secret = $ClientSecret
-              scope         = "https://graph.microsoft.com/.default"
-              grant_type    = "client_credentials"
-          }
-        
-        $AccessToken = $TokenResponse.access_token
-        
-        # トークンから有効期限を取得（JWTデコード）
-        $TokenExpiry = $null
-        try {
-            $tokenParts = $AccessToken.Split('.')
-            if ($tokenParts.Length -ge 2) {
-                $payload = $tokenParts[1]
-                $payload = $payload.Replace('-', '+').Replace('_', '/')
-                while ($payload.Length % 4 -ne 0) { $payload += '=' }
-                
-                $payloadJson = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payload))
-                $claims = $payloadJson | ConvertFrom-Json
-                
-                if ($claims.exp) {
-                    # Unix Epoch（1970/1/1からの秒数）をDateTimeに変換
-                    $TokenExpiry = [DateTimeOffset]::FromUnixTimeSeconds($claims.exp).LocalDateTime
-                }
-            }
-        } catch {
-            Write-Host "  警告: トークンのデコードに失敗しました" -ForegroundColor Yellow
-        }
-        
-        return @{
-            Token = $AccessToken
-            Expiry = $TokenExpiry
-        }
-    } catch {
-        throw "アクセストークンの取得に失敗しました: $_"
-    }
-}
-
-# 初回アクセストークン取得
+# アクセストークンを取得
+# アクセストークンを取得
 Write-Host "アクセストークン取得中..." -ForegroundColor Cyan
-$TokenInfo = Get-AccessToken -TenantDomain $TenantDomain -ClientId $ClientId -ClientSecret $ClientSecret
-$AccessToken = $TokenInfo.Token
-$TokenExpiry = $TokenInfo.Expiry
+$AccessToken = Get-MsalAccessToken -TenantIdentifier $TenantDomain -ClientId $ClientId -ClientSecret $ClientSecret
 
-if ($TokenExpiry) {
-    Write-Host "トークン有効期限: $($TokenExpiry.ToString('yyyy/MM/dd HH:mm:ss'))" -ForegroundColor Gray
-}
+Write-Host "✓ アクセストークン取得成功" -ForegroundColor Green
+Write-Host "MSAL.PSがトークンのキャッシュと自動更新を管理します" -ForegroundColor Gray
 
-$Headers = @{
-    Authorization  = "Bearer $AccessToken"
-    "Content-Type" = "application/json"
-}
+$Headers = New-GraphApiHeaders -AccessToken $AccessToken
 
 # グループ存在確認／作成
 $Groups = @{}
@@ -165,30 +114,14 @@ $startTime = Get-Date
 
 for ($i = $StartNumber; $i -le $TotalUsers; $i++) {
 
-    # トークン有効期限チェック（期限の1分前に再取得）
-    if ($TokenExpiry) {
-        $minutesUntilExpiry = ($TokenExpiry - (Get-Date)).TotalMinutes
-        if ($minutesUntilExpiry -lt 1) {
-            Write-Host "`n🔄 アクセストークンの有効期限が近づいています（残り: $([math]::Round($minutesUntilExpiry, 1))分）" -ForegroundColor Yellow
-            Write-Host "🔄 トークンを再取得中..." -ForegroundColor Yellow
-            
-            try {
-                $TokenInfo = Get-AccessToken -TenantDomain $TenantDomain -ClientId $ClientId -ClientSecret $ClientSecret
-                $AccessToken = $TokenInfo.Token
-                $TokenExpiry = $TokenInfo.Expiry
-                
-                # ヘッダーを更新
-                $Headers["Authorization"] = "Bearer $AccessToken"
-                
-                Write-Host "✓ トークン再取得成功（新しい有効期限: $($TokenExpiry.ToString('yyyy/MM/dd HH:mm:ss'))）" -ForegroundColor Green
-                Write-Host "⏸ トークン安定化のため3秒待機..." -ForegroundColor Gray
-                Start-Sleep -Seconds 3
-                
-                "Token refreshed at user $i" | Out-File $LogFile -Append
-            } catch {
-                Write-Host "✗ トークン再取得失敗: $_" -ForegroundColor Red
-                "Token refresh failed at user $i : $_" | Out-File $LogFile -Append
-            }
+    # MSAL.PSでトークンを自動更新（100ユーザーごと）
+    if (($i % 100) -eq 0 -and $i -gt 0) {
+        try {
+            $AccessToken = Get-MsalAccessToken -TenantIdentifier $TenantDomain -ClientId $ClientId -ClientSecret $ClientSecret
+            $Headers = New-GraphApiHeaders -AccessToken $AccessToken
+        } catch {
+            # エラーでも既存トークンで継続
+            "Token refresh attempt failed at user $i" | Out-File $LogFile -Append
         }
     }
 

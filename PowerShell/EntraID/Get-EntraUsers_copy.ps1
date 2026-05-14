@@ -12,6 +12,10 @@
     - 有効期限切れ前の自動リフレッシュ
     - 大量ユーザー取得時の401エラーを防止
     
+    グループ情報取得の最適化：
+    - $expand=memberOf を使用して一括取得
+    - 30万ユーザーでも30万回のリクエストを回避
+    
 .EXAMPLE
     # すべてのユーザーを取得
     .\Get-EntraUsers.ps1 `
@@ -118,7 +122,7 @@ if ($TenantId) {
     exit 1
 }
 
-# MSAL.PSでアクセストークンを取得（EntraIDLib.ps1の関数を使用）
+# MSAL.PSでアクセストークンを取得
 Write-Host "[1/3] アクセストークン取得中..." -ForegroundColor Green
 try {
     $accessToken = Get-MsalAccessToken -TenantIdentifier $tenantIdentifier -ClientId $ClientId -ClientSecret $ClientSecret
@@ -146,11 +150,19 @@ if ($Filter) {
 }
 
 # ページング対応でユーザーを取得
+# グループ情報も一緒に取得する場合は $expand=memberOf を使用して効率化
 $allUsers = @()
+$selectFields = "id,userPrincipalName,displayName,accountEnabled,createdDateTime"
+$expandFields = if ($IncludeGroups) { "&`$expand=memberOf(`$select=displayName,id)" } else { "" }
+
 $nextLink = if ($filterQuery) {
-    "https://graph.microsoft.com/v1.0/users?$filterQuery&`$top=999&`$select=id,userPrincipalName,displayName,accountEnabled,createdDateTime"
+    "https://graph.microsoft.com/v1.0/users?$filterQuery&`$top=999&`$select=$selectFields$expandFields"
 } else {
-    "https://graph.microsoft.com/v1.0/users?`$top=999&`$select=id,userPrincipalName,displayName,accountEnabled,createdDateTime"
+    "https://graph.microsoft.com/v1.0/users?`$top=999&`$select=$selectFields$expandFields"
+}
+
+if ($IncludeGroups) {
+    Write-Host "  最適化: `$expand=memberOf を使用してグループ情報を一括取得" -ForegroundColor Gray
 }
 
 $pageCount = 0
@@ -166,6 +178,22 @@ while ($nextLink -and ($MaxResults -eq 0 -or $allUsers.Count -lt $MaxResults)) {
     
     try {
         $response = Invoke-RestMethod -Method Get -Uri $nextLink -Headers $headers -TimeoutSec 30
+        
+        # グループ情報をユーザーオブジェクトに追加（$expand使用時）
+        if ($IncludeGroups) {
+            foreach ($user in $response.value) {
+                if ($user.memberOf) {
+                    $groupNames = ($user.memberOf | ForEach-Object { $_.displayName }) -join ", "
+                    $groupCount = $user.memberOf.Count
+                    $user | Add-Member -NotePropertyName "Groups" -NotePropertyValue $groupNames -Force
+                    $user | Add-Member -NotePropertyName "GroupCount" -NotePropertyValue $groupCount -Force
+                } else {
+                    $user | Add-Member -NotePropertyName "Groups" -NotePropertyValue "" -Force
+                    $user | Add-Member -NotePropertyName "GroupCount" -NotePropertyValue 0 -Force
+                }
+            }
+        }
+        
         $allUsers += $response.value
         $pageCount++
         
@@ -186,73 +214,8 @@ while ($nextLink -and ($MaxResults -eq 0 -or $allUsers.Count -lt $MaxResults)) {
 
 Write-Host "  ✓ $($allUsers.Count) ユーザーを取得しました" -ForegroundColor Green
 
-# グループ情報を取得（オプション）
-if ($IncludeGroups -and $allUsers.Count -gt 0) {
-    Write-Host "`n  グループメンバーシップを取得中..." -ForegroundColor Yellow
-    Write-Host "  （各ユーザーのAPI呼び出しが必要なため、時間がかかる場合があります）" -ForegroundColor Gray
-    Write-Host "  MSAL.PSによる自動トークン管理が有効" -ForegroundColor Gray
-    
-    $groupFetchStart = Get-Date
-    $successCount = 0
-    $errorCount = 0
-    
-    for ($i = 0; $i -lt $allUsers.Count; $i++) {
-        # MSAL.PSでトークンを自動更新（100ユーザーごと）
-        if (($i % 100) -eq 0 -and $i -gt 0) {
-            try {
-                $accessToken = Get-MsalAccessToken -TenantIdentifier $tenantIdentifier -ClientId $ClientId -ClientSecret $ClientSecret
-                $headers = New-GraphApiHeaders -AccessToken $accessToken
-            } catch {
-                # エラーでも既存トークンで継続
-            }
-        }
-        
-        $user = $allUsers[$i]
-        try {
-            # ページング対応でグループを取得（大量グループ対策）
-            $allGroups = @()
-            $groupsNextLink = "https://graph.microsoft.com/v1.0/users/$($user.id)/memberOf?`$select=displayName,id&`$top=999"
-            
-            while ($groupsNextLink) {
-                $groupsResponse = Invoke-RestMethod -Method Get -Uri $groupsNextLink -Headers $headers -TimeoutSec 30
-                $allGroups += $groupsResponse.value
-                $groupsNextLink = $groupsResponse.'@odata.nextLink'
-            }
-            
-            $groupNames = ($allGroups | ForEach-Object { $_.displayName }) -join ", "
-            $groupCount = $allGroups.Count
-            
-            # ユーザーオブジェクトにグループ情報を追加
-            $allUsers[$i] | Add-Member -NotePropertyName "Groups" -NotePropertyValue $groupNames -Force
-            $allUsers[$i] | Add-Member -NotePropertyName "GroupCount" -NotePropertyValue $groupCount -Force
-            
-            $successCount++
-            
-            if (($i + 1) % 50 -eq 0) {
-                $elapsed = ((Get-Date) - $groupFetchStart).TotalSeconds
-                $rate = if ($elapsed -gt 0) { [math]::Round(($i + 1) / $elapsed, 2) } else { 0 }
-                Write-Host "    進捗: $($i + 1) / $($allUsers.Count) ($rate user/s)" -ForegroundColor Gray
-            }
-        } catch {
-            $allUsers[$i] | Add-Member -NotePropertyName "Groups" -NotePropertyValue "取得失敗: $_" -Force
-            $allUsers[$i] | Add-Member -NotePropertyName "GroupCount" -NotePropertyValue 0 -Force
-            $errorCount++
-            
-            if ($errorCount -le 5) {
-                Write-Host "    ⚠ $($user.userPrincipalName): グループ取得失敗" -ForegroundColor Yellow
-            }
-        }
-        
-        # スロットリング対策
-        if (($i + 1) % 100 -eq 0) {
-            Start-Sleep -Milliseconds 200
-        }
-    }
-    
-    $groupFetchEnd = Get-Date
-    $totalTime = ($groupFetchEnd - $groupFetchStart).TotalSeconds
-    Write-Host "  ✓ グループ情報取得完了（成功: $successCount, 失敗: $errorCount, 時間: $([math]::Round($totalTime, 1))秒）" -ForegroundColor Green
-}
+# グループ情報の取得は $expand=memberOf で既に完了しているため、個別取得のループは不要
+# $expand を使用することで、30万ユーザーの場合でも30万回のリクエストを回避できます
 
 # 結果表示
 Write-Host "`n[3/3] 結果表示" -ForegroundColor Green
