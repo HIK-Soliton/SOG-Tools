@@ -17,12 +17,6 @@
     - 大量ユーザー作成時の401エラーを防止
 #>
 
-# 共通ライブラリの読み込み
-. "$PSScriptRoot\lib\EntraIDLib.ps1"
-
-# MSAL.PSモジュールの初期化
-Initialize-MsalModule
-
 [CmdletBinding()]
 param(
     # 既存ユーザーにグループ追加処理を実行
@@ -44,7 +38,11 @@ param(
     [string]$InitialPassword
 )
 
-# パラメータ
+# 共通ライブラリの読み込み
+. "$PSScriptRoot\lib\EntraIDLib.ps1"
+
+# MSAL.PSモジュールの初期化
+Initialize-MsalModule
 
 # ===== ユーザー設定 =====
 $StartNumber     = 1    # ユーザー開始番号
@@ -57,7 +55,6 @@ $GroupCount  = 1
 # ===== ログ =====
 $LogFile = ".\create_users$(Get-Date -Format 'yyyyMMddHHmmss').log"
 
-# アクセストークンを取得
 # アクセストークンを取得
 Write-Host "アクセストークン取得中..." -ForegroundColor Cyan
 $AccessToken = Get-MsalAccessToken -TenantIdentifier $TenantDomain -ClientId $ClientId -ClientSecret $ClientSecret

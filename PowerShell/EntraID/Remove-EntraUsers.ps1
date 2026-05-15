@@ -40,12 +40,6 @@
         -EndNumber 1000
 #>
 
-# 共通ライブラリの読み込み
-. "$PSScriptRoot\lib\EntraIDLib.ps1"
-
-# MSAL.PSモジュールの初期化
-Initialize-MsalModule
-
 [CmdletBinding()]
 param(
     # ドメイン（テナント識別とUPNに使用）
@@ -82,12 +76,15 @@ param(
     [string]$DeleteLog = ".\delete_users.log"
 )
 
-# パラメータ
+# 共通ライブラリの読み込み
+. "$PSScriptRoot\lib\EntraIDLib.ps1"
+
+# MSAL.PSモジュールの初期化
+Initialize-MsalModule
 
 # ===== 削除条件 =====
 $UserPrefix = "testuser"
 
-# アクセストークンを取得（EntraIDLib.ps1の関数を使用）
 # アクセストークンを取得（EntraIDLib.ps1の関数を使用）
 Write-Host "アクセストークン取得中..." -ForegroundColor Cyan
 $AccessToken = Get-MsalAccessToken -TenantIdentifier $Domain -ClientId $ClientId -ClientSecret $ClientSecret

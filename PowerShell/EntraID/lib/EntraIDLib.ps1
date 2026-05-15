@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Entra ID / Microsoft Graph API 操作用の共通ライブラリ
 
