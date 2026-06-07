@@ -1,0 +1,26 @@
+# 環境変数ファイル（認証情報を含むため）
+.env
+
+# Pythonキャッシュ
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# テスト用証明書ファイル
+*.csr
+*.crt
+*.pem
+*.der
+*.key
+
+# IDE設定
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS固有
+.DS_Store
+Thumbs.db
