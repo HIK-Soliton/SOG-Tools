@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://hiki-test.ids-dev.solitonsys.jp/idp/sso">
+	<md:IDPSSODescriptor WantAuthnRequestsSigned="false"
+		protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+		<md:KeyDescriptor use="signing">
+			<ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+				<ds:X509Data>
+					<ds:X509Certificate>MIIC0jCCAbqgAwIBAgIGAZCBN02dMA0GCSqGSIb3DQEBCwUAMCoxKDAmBgNVBAMMH2hpa2ktdGVzdC5pZHMtZGV2LnNvbGl0b25zeXMuanAwHhcNMjQwNzA1MDQ0NjQzWhcNMjkwNzA1MDQ0NjQzWjAqMSgwJgYDVQQDDB9oaWtpLXRlc3QuaWRzLWRldi5zb2xpdG9uc3lzLmpwMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArHChrrRqNKstnTqgcTpMXNJ4ZkL5NyiJGBMc9isdBNLxyV0EkgBKhLGsFYG9CFQv1WnCAfk/JMJ4eva39Hi5K4rDVpO/iuB6zc2aJorvsWYiVtwKWShJ914/fUYAMi8pSSVKhEu5xND0mEw5WnG/KzM7o0V65gMGzIh+ALvzION/KUAnxTu3OEjX1sfaAS/Ew5G7SbWYVBgPhzcV5U6lj8ZgoAYCV/kRV9ofseFAAVXscKBM7B3IW/6ZxDT5sLj4QOPOYzSy++3zQzazHy72eSRaVI0MMPXhanhtEuw7bxOTAiDA7BJjYOzagJUSOlD+R7kFhKT6xNQj4mF384XLNwIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQBl9wMyrvN3oYNA69Ng8dfmq88rKYzaOefiHu8+drbUTEVVpShuGkteWY/QSGpXjfIqp39o3HZ/YCM6a+TePRvHTOGPDeSJwL0t6WlgLHyXrw1y+0pVZGDc8CLCplPaUnVV9E/5wOoGj0519+lvNIv8kUNw+q+KKtFTiTZO6p6CcRXKsCcJ9JKjr2GtWI4slvdv4Y9ZG4b3/lBCafhvR/NaaxhEyVR0snEC2OnzzgjZ4/16ExN6+0tqaAq+UR4ynu1UJmWFgqg+bKVK+3G0Cw4/iCtO65Ok0Go82pQgepImNr6lz8rOoHuRRWSD34y29NumA/RPZ3hVyH9tMeB/79nF</ds:X509Certificate>
+				</ds:X509Data>
+			</ds:KeyInfo>
+		</md:KeyDescriptor>
+		<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+		<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://hiki-test.ids-dev.solitonsys.jp/idp/sso" />
+		<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://hiki-test.ids-dev.solitonsys.jp/idp/sso" />
+	</md:IDPSSODescriptor>
+</md:EntityDescriptor>

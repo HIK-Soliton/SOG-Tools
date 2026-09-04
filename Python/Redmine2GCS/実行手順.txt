@@ -1,0 +1,93 @@
+================================
+Redmine to GCS スクリプト実行手順
+================================
+
+【1】Python仮想環境のセットアップ
+--------------------------------
+
+■ 新規に仮想環境を作成する場合:
+
+  cd c:\Users\hiki.FOURSEASONS\src\SOG-Tools\Python\Redmine2GCS
+  python -m venv venv
+
+■ 仮想環境を起動する:
+
+  ＜PowerShellの場合＞
+  .\venv\Scripts\Activate.ps1
+
+  ＜コマンドプロンプトの場合＞
+  venv\Scripts\activate.bat
+
+
+【2】必要なパッケージのインストール
+------------------------------------
+
+  pip install requests google-cloud-storage
+
+
+【3】スクリプトの実行
+----------------------
+
+■ 基本的な実行方法:
+
+  python redmine_to_gcs.py `
+    --redmine-url https://your-redmine.com `
+    --api-key YOUR_REDMINE_API_KEY `
+    --project-id target-project `
+    --gcp-project your-gcp-project `
+    --bucket your-bucket-name `
+    --blob-path redmine_data/tickets.jsonl `
+    --credentials /path/to/service-account-key.json
+
+■ 環境変数GOOGLE_APPLICATION_CREDENTIALSが設定済みの場合:
+
+  python redmine_to_gcs.py `
+    --redmine-url https://your-redmine.com `
+    --api-key YOUR_REDMINE_API_KEY `
+    --project-id target-project `
+    --gcp-project your-gcp-project `
+    --bucket your-bucket-name
+
+  ※ --credentials オプションは省略可能
+
+■ ヘルプを表示する:
+
+  python redmine_to_gcs.py --help
+
+
+【4】仮想環境の終了
+--------------------
+
+  deactivate
+
+
+================================
+パラメータ説明
+================================
+
+--redmine-url      : RedmineのベースURL（例: https://redmine.example.com）
+--api-key          : RedmineのAPIキー（個人設定から取得）
+--project-id       : 対象のRedmineプロジェクトID
+--gcp-project      : Google CloudプロジェクトID
+--bucket           : 格納先のGCSバケット名
+--blob-path        : GCS上のファイル保存パス（省略可、デフォルト: redmine_data/tickets.jsonl）
+--credentials      : サービスアカウントキー（JSON）へのパス（省略可）
+
+
+================================
+トラブルシューティング
+================================
+
+■ PowerShellで実行ポリシーエラーが出る場合:
+
+  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+■ 仮想環境がすでに存在する場合:
+
+  既存の仮想環境を削除してから再作成:
+    Remove-Item -Recurse -Force venv
+    python -m venv venv
+
+■ パッケージのバージョンを指定してインストールする場合:
+
+  pip install requests==2.31.0 google-cloud-storage==2.10.0

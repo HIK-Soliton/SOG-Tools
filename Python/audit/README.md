@@ -19,6 +19,13 @@ gcloud projects get-iam-policy idaas-dev \
     --format="csv(bindings.members:label=member, bindings.role:label=role)" \
     > ~/Downloads/iam_list_detailed.csv
 
+```powershell
+# プロジェクト名「idaas-dev」からメンバーごとにロールを1行ずつバラしたCSVを抽出
+gcloud projects get-iam-policy idaas-dev `
+    --flatten="bindings[].members" `
+    --format="csv(bindings.members:label=member, bindings.role:label=role)" `
+    > ~/Downloads/iam_list_detailed.csv
+
 💡 注意：コマンド実行前に `gcloud auth login` および `gcloud config set project idaas-dev` で対象プロジェクトへのアクセス権がある状態にしてください。
 
 ## 2. 対象ファイルの配置確認
