@@ -660,11 +660,14 @@ def main() -> int:
 
     success_count = sum(1 for result in results if result.success)
     failure_count = len(results) - success_count
+    elapsed_seconds = time.perf_counter() - start_time
+    average_requests_per_second = len(results) / elapsed_seconds if elapsed_seconds > 0 else 0.0
     summary = {
         "total": len(results),
         "success": success_count,
         "failure": failure_count,
-        "elapsedSeconds": round(time.perf_counter() - start_time, 3),
+        "elapsedSeconds": round(elapsed_seconds, 3),
+        "averageRequestsPerSecond": round(average_requests_per_second, 3),
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0 if failure_count == 0 else 1
