@@ -298,7 +298,7 @@ class ThreadedHttpServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
 def start_sp_server(host: str, port: int, store: SamlResponseStore, metadata_xml: bytes) -> ThreadedHttpServer:
     handler = make_acs_handler(store, metadata_xml)
     server = ThreadedHttpServer((host, port), handler)
-    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.05), daemon=True)
     server_thread.start()
     return server
 
@@ -489,6 +489,7 @@ def run_single_test(
     store: SamlResponseStore,
     entity_id: str,
     acs_url: str,
+    http_adapter: requests.adapters.HTTPAdapter,
 ) -> TestResult:
     started_at = time.perf_counter()
     sso_url = metadata.sso_redirect_url if args.binding == "redirect" else metadata.sso_post_url
@@ -498,6 +499,9 @@ def run_single_test(
     request_context = dataclasses.replace(generate_authn_request(entity_id, acs_url, sso_url), user_id=select_user_id(args))
     response_queue = store.register(request_context.relay_state)
     session = requests.Session()
+    session.adapters.clear()
+    session.mount("http://", http_adapter)
+    session.mount("https://", http_adapter)
     session.verify = not args.insecure_tls
     session.headers.update(
         {
@@ -567,7 +571,8 @@ def run_single_test(
             saml_payload = response_queue.get(timeout=args.response_timeout)
         except queue.Empty as queue_error:
             raise TimeoutError("Timed out waiting for SAMLResponse at ACS.") from queue_error
-        verify_saml_response(saml_payload["SAMLResponse"], metadata, request_context, entity_id, acs_url)
+        if not args.skip_response_validation:
+            verify_saml_response(saml_payload["SAMLResponse"], metadata, request_context, entity_id, acs_url)
         return TestResult(request_context.user_id, True, "ok", time.perf_counter() - started_at)
     except Exception as test_error:  # noqa: BLE001
         return TestResult(request_context.user_id, False, str(test_error), time.perf_counter() - started_at)
@@ -592,6 +597,14 @@ def pace_submissions(total_requests: int, requests_per_second: float) -> list[fl
     return [index * interval for index in range(total_requests)]
 
 
+def percentile(values: list[float], percentile_value: float) -> float:
+    if not values:
+        return 0.0
+    sorted_values = sorted(values)
+    index = min(round((len(sorted_values) - 1) * percentile_value), len(sorted_values) - 1)
+    return sorted_values[index]
+
+
 def parse_args() -> argparse.Namespace:
     script_dir = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description="Run SP-Initiated SAML authentication tests against an IdP.")
@@ -611,6 +624,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--login-payload-format", choices=("json", "form"), default="json")
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--response-timeout", type=float, default=30.0)
+    parser.add_argument("--skip-response-validation", action="store_true", help="Skip SAMLResponse signature and assertion validation for load generation.")
     parser.add_argument("--insecure-tls", action="store_true", help="Disable TLS certificate verification for test environments.")
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args()
@@ -627,6 +641,11 @@ def main() -> int:
     sp_metadata_xml = build_sp_metadata(entity_id, acs_url)
     store = SamlResponseStore()
     server = start_sp_server(args.sp_host, args.sp_port, store, sp_metadata_xml)
+    http_adapter = requests.adapters.HTTPAdapter(
+        pool_connections=args.threads,
+        pool_maxsize=args.threads,
+        pool_block=True,
+    )
 
     LOGGER.info("IdP entityID: %s", metadata.entity_id)
     LOGGER.info("SP entityID: %s", entity_id)
@@ -635,6 +654,7 @@ def main() -> int:
 
     results: list[TestResult] = []
     start_time = time.perf_counter()
+    completed_at: float | None = None
     schedules = pace_submissions(args.requests, args.rps)
 
     try:
@@ -644,7 +664,7 @@ def main() -> int:
                 sleep_seconds = start_time + scheduled_offset - time.perf_counter()
                 if sleep_seconds > 0:
                     time.sleep(sleep_seconds)
-                futures.append(executor.submit(run_single_test, args, metadata, store, entity_id, acs_url))
+                futures.append(executor.submit(run_single_test, args, metadata, store, entity_id, acs_url, http_adapter))
 
             for future in concurrent.futures.as_completed(futures):
                 result = future.result()
@@ -652,21 +672,29 @@ def main() -> int:
                 if not result.success:
                     LOGGER.warning("FAIL user=%s elapsed=%.3fs error=%s", result.user_id, result.elapsed_seconds, result.message)
                 else:
-                    LOGGER.info("OK user=%s elapsed=%.3fs", result.user_id, result.elapsed_seconds)
+                    LOGGER.debug("OK user=%s elapsed=%.3fs", result.user_id, result.elapsed_seconds)
+        completed_at = time.perf_counter()
     finally:
+        http_adapter.close()
         server.shutdown()
         server.server_close()
 
     success_count = sum(1 for result in results if result.success)
     failure_count = len(results) - success_count
-    elapsed_seconds = time.perf_counter() - start_time
+    elapsed_seconds = (completed_at or time.perf_counter()) - start_time
     average_requests_per_second = len(results) / elapsed_seconds if elapsed_seconds > 0 else 0.0
+    request_elapsed_seconds = [result.elapsed_seconds for result in results]
+    average_elapsed_seconds = (
+        sum(request_elapsed_seconds) / len(request_elapsed_seconds) if request_elapsed_seconds else 0.0
+    )
     summary = {
         "total": len(results),
         "success": success_count,
         "failure": failure_count,
         "elapsedSeconds": round(elapsed_seconds, 3),
         "averageRequestsPerSecond": round(average_requests_per_second, 3),
+        "averageRequestElapsedSeconds": round(average_elapsed_seconds, 3),
+        "p95RequestElapsedSeconds": round(percentile(request_elapsed_seconds, 0.95), 3),
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0 if failure_count == 0 else 1

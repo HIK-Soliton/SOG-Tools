@@ -157,6 +157,7 @@ python dummy_saml_test.py --password "固定パスワード" --requests 100 --rp
 | `--login-method` | いいえ | `POST` | ログインAPIのHTTPメソッド |
 | `--timeout` | いいえ | `30` | HTTPリクエストのタイムアウト秒 |
 | `--response-timeout` | いいえ | `30` | ACSでSAMLResponseを待つ秒数 |
+| `--skip-response-validation` | いいえ | 無効 | 負荷生成を優先し、SAMLResponseの署名・Assertion検証を省略 |
 | `--insecure-tls` | いいえ | 無効 | TLS証明書検証を無効化 |
 | `--verbose` | いいえ | 無効 | 詳細ログを出力 |
 
@@ -272,11 +273,36 @@ python dummy_saml_test.py --user-id "soliton000001" --password "固定パスワ�
   "success": 100,
   "failure": 0,
   "elapsedSeconds": 10.123,
-  "averageRequestsPerSecond": 9.879
+  "averageRequestsPerSecond": 9.879,
+  "averageRequestElapsedSeconds": 1.742,
+  "p95RequestElapsedSeconds": 3.401
 }
 ```
 
 `averageRequestsPerSecond` は、成功・失敗を含む完了リクエスト総数を総経過秒数で割った、実測の1秒あたり平均処理数です。指定した `--rps` ではなく、実際の処理結果から算出されます。
+
+- `averageRequestElapsedSeconds`: 1認証トランザクションの平均処理時間
+- `p95RequestElapsedSeconds`: 95%の認証トランザクションが完了する処理時間
+
+## 性能調整
+
+スクリプトは認証セッションごとにCookieを分離しつつ、HTTP接続プールを全スレッドで共有します。これによりTCP/TLS接続を可能な範囲で再利用します。また、成功したリクエスト単位のログは `--verbose` 指定時のみ出力します。
+
+負荷生成だけを目的とし、各SAMLResponseの署名検証が不要な場合は、以下のように指定します。
+
+```powershell
+python dummy_saml_test.py --password "固定パスワード" --requests 1000 --rps 20 --threads 20 --skip-response-validation
+```
+
+`--threads` を増やしても `averageRequestsPerSecond` が増えず、`averageRequestElapsedSeconds` や `p95RequestElapsedSeconds` が悪化する場合は、IdP側または経路上で待ち行列が発生しています。この場合、スレッド数をさらに増やしても性能は改善せず、タイムアウトやTLS切断が増える可能性があります。
+
+目安となる必要スレッド数は次の式で算出できます。
+
+```text
+必要スレッド数 ≒ 目標RPS × 平均処理時間（秒） × 1.2～1.5
+```
+
+例えば目標20 RPS、平均処理時間1.0秒の場合は、24～30スレッドが目安です。スレッド数を変える場合は100件程度の短時間テストを行い、`averageRequestsPerSecond` とp95処理時間の両方を比較してください。
 
 失敗したリクエストは、標準ログにユーザーID、経過秒数、エラー内容を出力します。
 
