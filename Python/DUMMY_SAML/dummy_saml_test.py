@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """SAML SP-Initiated authentication test runner.
 
 Place IdP metadata as OneGateCloudMetadata.xml in the same directory by default.
