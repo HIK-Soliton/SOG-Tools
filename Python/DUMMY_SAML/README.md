@@ -271,9 +271,12 @@ python dummy_saml_test.py --user-id "soliton000001" --password "固定パスワ�
   "total": 100,
   "success": 100,
   "failure": 0,
-  "elapsedSeconds": 10.123
+  "elapsedSeconds": 10.123,
+  "averageRequestsPerSecond": 9.879
 }
 ```
+
+`averageRequestsPerSecond` は、成功・失敗を含む完了リクエスト総数を総経過秒数で割った、実測の1秒あたり平均処理数です。指定した `--rps` ではなく、実際の処理結果から算出されます。
 
 失敗したリクエストは、標準ログにユーザーID、経過秒数、エラー内容を出力します。
 
