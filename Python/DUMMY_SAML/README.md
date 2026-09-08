@@ -20,11 +20,46 @@
 ```text
 DUMMY_SAML/
   dummy_saml_test.py
+  dummy_saml_main.go
+  go.mod
   OneGateCloudMetadata.xml
   requirements.txt
   spec.md
   README.md
 ```
+
+## Go版 (macOS向け)
+
+`dummy_saml_main.go` は Python 版と同じ目的で動く Go 実装です。
+
+Go版のローカルSP既定ポートは `8001` です（必要に応じて `--sp-port` で変更）。
+
+### 前提
+
+- Go 1.23 以上
+
+### 初回セットアップ
+
+```bash
+cd /Users/hiroyukiiki/src/SOG-Tools/Python/DUMMY_SAML
+go mod tidy
+go build -o dummy_saml_test_go ./dummy_saml_main.go
+```
+
+### 実行例
+
+```bash
+cd /Users/hiroyukiiki/src/SOG-Tools/Python/DUMMY_SAML
+./dummy_saml_test_go --password "固定パスワード" --requests 100 --rps 10 --threads 5
+```
+
+ビルドせずに直接実行する場合:
+
+```bash
+go run ./dummy_saml_main.go --password "固定パスワード" --requests 100 --rps 10 --threads 5
+```
+
+Go版も同じ主要オプション (`--password`, `--requests`, `--rps`, `--threads`, `--binding`, `--sp-port` など) を利用できます。
 
 ## セットアップ
 
