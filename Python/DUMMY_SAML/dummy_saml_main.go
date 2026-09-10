@@ -32,15 +32,17 @@ import (
 
 	"github.com/beevik/etree"
 	dsig "github.com/russellhaering/goxmldsig"
+	"github.com/russellhaering/goxmldsig/etreeutils"
 	"golang.org/x/net/html"
 )
 
 const (
-	samlStatusSuccess  = "urn:oasis:names:tc:SAML:2.0:status:Success"
-	samlBindingPOST    = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+	samlStatusSuccess   = "urn:oasis:names:tc:SAML:2.0:status:Success"
+	samlAssertionNS     = "urn:oasis:names:tc:SAML:2.0:assertion"
+	samlBindingPOST     = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
 	samlBindingRedirect = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
-	nameIDEmail        = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
-	browserUserAgent   = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+	nameIDEmail         = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+	browserUserAgent    = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
 )
 
 type args struct {
@@ -122,9 +124,9 @@ func (s *responseStore) remove(relayState string) {
 }
 
 type metadataXML struct {
-	XMLName                xml.Name                 `xml:"EntityDescriptor"`
-	EntityID               string                   `xml:"entityID,attr"`
-	IDPSSODescriptor       metadataIDPSSODescriptor `xml:"IDPSSODescriptor"`
+	XMLName          xml.Name                 `xml:"EntityDescriptor"`
+	EntityID         string                   `xml:"entityID,attr"`
+	IDPSSODescriptor metadataIDPSSODescriptor `xml:"IDPSSODescriptor"`
 }
 
 type metadataIDPSSODescriptor struct {
@@ -138,8 +140,8 @@ type metadataSSOService struct {
 }
 
 type metadataKeyDesc struct {
-	Use    string            `xml:"use,attr"`
-	KeyInfo metadataKeyInfo  `xml:"KeyInfo"`
+	Use     string          `xml:"use,attr"`
+	KeyInfo metadataKeyInfo `xml:"KeyInfo"`
 }
 
 type metadataKeyInfo struct {
@@ -558,6 +560,32 @@ func pemCertFromBase64(body string) ([]byte, error) {
 	return p, nil
 }
 
+// etree paths cannot express namespace URIs, so match on the resolved URI directly.
+func childElementsNS(parent *etree.Element, namespace, tag string) []*etree.Element {
+	found := []*etree.Element{}
+	for _, child := range parent.ChildElements() {
+		if child.Tag == tag && child.NamespaceURI() == namespace {
+			found = append(found, child)
+		}
+	}
+	return found
+}
+
+func findElementsNS(root *etree.Element, namespace, tag string) []*etree.Element {
+	found := []*etree.Element{}
+	var walk func(*etree.Element)
+	walk = func(el *etree.Element) {
+		if el.Tag == tag && (namespace == "" || el.NamespaceURI() == namespace) {
+			found = append(found, el)
+		}
+		for _, child := range el.ChildElements() {
+			walk(child)
+		}
+	}
+	walk(root)
+	return found
+}
+
 func verifySAMLResponse(samlResponseB64 string, metadata *idpMetadata, reqCtx samlRequestContext, expectedAudience, expectedACSURL string) error {
 	xmlBytes, err := base64.StdEncoding.DecodeString(samlResponseB64)
 	if err != nil {
@@ -569,8 +597,44 @@ func verifySAMLResponse(samlResponseB64 string, metadata *idpMetadata, reqCtx sa
 		return err
 	}
 
+	root := doc.Root()
+	if root == nil {
+		return errors.New("empty SAMLResponse")
+	}
+	if v := root.SelectAttrValue("InResponseTo", ""); v != "" && v != reqCtx.RequestID {
+		return fmt.Errorf("unexpected InResponseTo: %s", v)
+	}
+	if v := root.SelectAttrValue("Destination", ""); v != "" && v != expectedACSURL {
+		return fmt.Errorf("unexpected Response Destination: %s", v)
+	}
+
+	statusCode := ""
+	for _, e := range findElementsNS(root, "", "StatusCode") {
+		statusCode = e.SelectAttrValue("Value", "")
+		if statusCode != "" {
+			break
+		}
+	}
+	if statusCode != samlStatusSuccess {
+		return fmt.Errorf("SAMLResponse status is not Success: %s", statusCode)
+	}
+
+	assertions := childElementsNS(root, samlAssertionNS, "Assertion")
+	if len(assertions) != 1 {
+		return fmt.Errorf("expected exactly one Assertion, found %d", len(assertions))
+	}
+	// Re-declare namespaces inherited from Response so the Assertion can be canonicalized standalone.
+	parentNSCtx, err := etreeutils.NSBuildParentContext(assertions[0])
+	if err != nil {
+		return err
+	}
+	assertion, err := etreeutils.NSDetatch(parentNSCtx, assertions[0])
+	if err != nil {
+		return err
+	}
+
 	verificationErrors := []string{}
-	verified := false
+	var verifiedAssertion *etree.Element
 	for _, certBody := range metadata.SigningCertificates {
 		pemCert, err := pemCertFromBase64(certBody)
 		if err != nil {
@@ -589,44 +653,24 @@ func verifySAMLResponse(samlResponseB64 string, metadata *idpMetadata, reqCtx sa
 		}
 		store := &dsig.MemoryX509CertificateStore{Roots: []*x509.Certificate{cert}}
 		ctx := dsig.NewDefaultValidationContext(store)
-		if _, err := ctx.Validate(doc.Root()); err == nil {
-			verified = true
-			break
-		} else {
+		ctx.IdAttribute = "ID"
+		validated, err := ctx.Validate(assertion)
+		if err != nil {
 			verificationErrors = append(verificationErrors, err.Error())
+			continue
 		}
+		verifiedAssertion = validated
+		break
 	}
-	if !verified {
+	if verifiedAssertion == nil {
 		if len(verificationErrors) > 3 {
 			verificationErrors = verificationErrors[:3]
 		}
-		return fmt.Errorf("SAMLResponse signature verification failed: %s", strings.Join(verificationErrors, " | "))
-	}
-
-	root := doc.Root()
-	if root == nil {
-		return errors.New("empty SAMLResponse")
-	}
-	if v := root.SelectAttrValue("InResponseTo", ""); v != "" && v != reqCtx.RequestID {
-		return fmt.Errorf("unexpected InResponseTo: %s", v)
-	}
-	if v := root.SelectAttrValue("Destination", ""); v != "" && v != expectedACSURL {
-		return fmt.Errorf("unexpected Response Destination: %s", v)
-	}
-
-	statusCode := ""
-	for _, e := range root.FindElements(".//{*}StatusCode") {
-		statusCode = e.SelectAttrValue("Value", "")
-		if statusCode != "" {
-			break
-		}
-	}
-	if statusCode != samlStatusSuccess {
-		return fmt.Errorf("SAMLResponse status is not Success: %s", statusCode)
+		return fmt.Errorf("SAML Assertion signature verification failed: %s", strings.Join(verificationErrors, " | "))
 	}
 
 	audiences := []string{}
-	for _, e := range root.FindElements(".//{*}Audience") {
+	for _, e := range findElementsNS(verifiedAssertion, samlAssertionNS, "Audience") {
 		text := strings.TrimSpace(e.Text())
 		if text != "" {
 			audiences = append(audiences, text)
@@ -646,7 +690,7 @@ func verifySAMLResponse(samlResponseB64 string, metadata *idpMetadata, reqCtx sa
 	}
 
 	recipients := []string{}
-	for _, e := range root.FindElements(".//{*}SubjectConfirmationData") {
+	for _, e := range findElementsNS(verifiedAssertion, samlAssertionNS, "SubjectConfirmationData") {
 		r := e.SelectAttrValue("Recipient", "")
 		if r != "" {
 			recipients = append(recipients, r)
@@ -954,13 +998,13 @@ func main() {
 		avgReqElapsed /= float64(len(elapsedPerReq))
 	}
 	summary := map[string]any{
-		"total":                       len(allResults),
-		"success":                     success,
-		"failure":                     failure,
-		"elapsedSeconds":              round3(elapsed),
-		"averageRequestsPerSecond":    round3(float64(len(allResults)) / elapsed),
+		"total":                        len(allResults),
+		"success":                      success,
+		"failure":                      failure,
+		"elapsedSeconds":               round3(elapsed),
+		"averageRequestsPerSecond":     round3(float64(len(allResults)) / elapsed),
 		"averageRequestElapsedSeconds": round3(avgReqElapsed),
-		"p95RequestElapsedSeconds":    round3(percentile(elapsedPerReq, 0.95)),
+		"p95RequestElapsedSeconds":     round3(percentile(elapsedPerReq, 0.95)),
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetEscapeHTML(false)

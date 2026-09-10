@@ -441,21 +441,12 @@ def verify_saml_response(
     expected_acs_url: str,
 ) -> None:
     try:
+        from lxml import etree
         from signxml import XMLVerifier
     except ImportError as import_error:  # pragma: no cover
-        raise RuntimeError("signxml is required for SAMLResponse signature verification.") from import_error
+        raise RuntimeError("signxml and lxml are required for SAMLResponse signature verification.") from import_error
 
     xml_bytes = base64.b64decode(saml_response_b64)
-    verification_errors: list[str] = []
-    for certificate_body in metadata.signing_certificates:
-        certificate_pem = to_pem_certificate(certificate_body)
-        try:
-            XMLVerifier().verify(xml_bytes, x509_cert=certificate_pem)
-            break
-        except Exception as verify_error:  # noqa: BLE001
-            verification_errors.append(str(verify_error))
-    else:
-        raise ValueError("SAMLResponse signature verification failed: " + " | ".join(verification_errors[:3]))
 
     response_xml = ElementTree.fromstring(xml_bytes)
     response_in_response_to = response_xml.attrib.get("InResponseTo")
@@ -469,11 +460,37 @@ def verify_saml_response(
     if status_code is None or status_code.attrib.get("Value") != f"{SAML_STATUS}:Success":
         raise ValueError("SAMLResponse status is not Success.")
 
-    audience_values = [node.text for node in response_xml.findall(".//{*}Audience") if node.text]
+    parser = etree.XMLParser(resolve_entities=False, no_network=True)
+    response_tree = etree.fromstring(xml_bytes, parser=parser)
+    assertions = response_tree.findall(f"./{{{SAML_ASSERTION}}}Assertion")
+    if len(assertions) != 1:
+        raise ValueError(f"Expected exactly one Assertion, found {len(assertions)}.")
+
+    verification_errors: list[str] = []
+    verified_assertion = None
+    for certificate_body in metadata.signing_certificates:
+        certificate_pem = to_pem_certificate(certificate_body)
+        try:
+            verified_assertion = XMLVerifier().verify(
+                assertions[0],
+                x509_cert=certificate_pem,
+                id_attribute="ID",
+            ).signed_xml
+            break
+        except Exception as verify_error:  # noqa: BLE001
+            verification_errors.append(f"{type(verify_error).__name__}: {verify_error}")
+    if verified_assertion is None:
+        raise ValueError("SAML Assertion signature verification failed: " + " | ".join(verification_errors[:3]))
+
+    audience_values = [
+        node.text for node in verified_assertion.findall(f".//{{{SAML_ASSERTION}}}Audience") if node.text
+    ]
     if audience_values and expected_audience not in audience_values:
         raise ValueError(f"Expected audience not found: {expected_audience}")
 
-    recipient_values = [node.attrib.get("Recipient") for node in response_xml.findall(".//{*}SubjectConfirmationData")]
+    recipient_values = [
+        node.get("Recipient") for node in verified_assertion.findall(f".//{{{SAML_ASSERTION}}}SubjectConfirmationData")
+    ]
     if recipient_values and expected_acs_url not in recipient_values:
         raise ValueError(f"Expected recipient not found: {expected_acs_url}")
 
