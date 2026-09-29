@@ -248,7 +248,7 @@ func parseIDPMetadata(path string) (*idpMetadata, error) {
 }
 
 func randomUserID() string {
-	return fmt.Sprintf("soliton%06d", rand.IntN(100000)+1)
+	return fmt.Sprintf("soliton%06d", rand.IntN(200000)+1)
 }
 
 func selectUserID(a *args) string {
