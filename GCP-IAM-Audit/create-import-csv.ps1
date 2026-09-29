@@ -153,24 +153,7 @@ function Test-TargetMember {
         [string]$Member
     )
 
-    if ($Member -match "^serviceAccount:(?<serviceAccountEmail>[^:]+)$") {
-        $serviceAccountEmail = $Matches.serviceAccountEmail
-
-        # Google Cloudが自動作成する代表的なサービスエージェントを除外
-        if (
-            $serviceAccountEmail -match "^service-\d+@gcp-sa-[^.]+\.iam\.gserviceaccount\.com$" -or
-            $serviceAccountEmail -match "^\d+-compute@developer\.gserviceaccount\.com$" -or
-            $serviceAccountEmail -match "^\d+@cloudbuild\.gserviceaccount\.com$" -or
-            $serviceAccountEmail -match "^\d+@cloudservices\.gserviceaccount\.com$" -or
-            $serviceAccountEmail -eq "$ProjectId@appspot.gserviceaccount.com"
-        ) {
-            return $false
-        }
-
-        return $true
-    }
-
-    return $Member -match "^(user|group):"
+    return $Member -match "^(serviceAccount|user|group):"
 }
 
 # ============================================
