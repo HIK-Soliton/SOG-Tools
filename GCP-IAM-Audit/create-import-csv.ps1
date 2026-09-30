@@ -64,11 +64,17 @@ function Invoke-GcloudJson {
         [string]$ErrorMessage
     )
 
-    $json = & gcloud @Arguments 2>&1
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+    try {
+        $json = & gcloud @Arguments 2> $stderrPath
 
-    if ($LASTEXITCODE -ne 0) {
-        $detail = $json -join [Environment]::NewLine
-        throw "$ErrorMessage`n$detail"
+        if ($LASTEXITCODE -ne 0) {
+            $detail = Get-Content -LiteralPath $stderrPath -Raw
+            throw "$ErrorMessage`n$detail"
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
     }
 
     $jsonText = $json -join [Environment]::NewLine
