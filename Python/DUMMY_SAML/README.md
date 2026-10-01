@@ -61,6 +61,21 @@ go run ./dummy_saml_main.go --password "固定パスワード" --requests 100 --
 
 Go版も同じ主要オプション (`--password`, `--requests`, `--rps`, `--threads`, `--binding`, `--sp-port` など) を利用できます。
 
+### クライアント証明書 (mTLS)
+
+HTTPSのSSO URLやログインURLがクライアント証明書を要求する場合、`.p12` ファイルを指定します。P12のパスワードはコマンド履歴に残さないよう、環境変数で設定します。
+
+```powershell
+$env:DUMMY_SAML_P12_PASSWORD = "P12ファイルのパスワード"
+go run ./dummy_saml_main.go --client-p12 .\client.p12 --password "ログインパスワード" --requests 1 --rps 1 --threads 1
+```
+
+パスワードが設定されていないP12の場合、環境変数は不要です。クライアント証明書は、サーバーがTLSハンドシェイクで証明書を要求したHTTPS通信に提示されます。これはプログラムからIdPなどへ送信する通信向けであり、ローカルHTTPのACS受信サーバーに証明書を設定するものではありません。
+
+`--client-p12`を指定すると、HTTPSアクセス先のホスト名が`ids-dev.solitonsys.jp`で終わる場合、自動的に`ids-dev-s.solitonsys.jp`へ切り替えます。P12を指定しない場合や、それ以外のドメインには適用されません。
+
+GoのPKCS#12デコーダーで読めないBER形式の`.p12`の場合は、OpenSSLのlegacy providerを使って読み込みます。その場合は実行環境に`openssl`コマンドが必要です。
+
 ## セットアップ
 
 このフォルダで仮想環境を作成してから、依存パッケージをインストールします。

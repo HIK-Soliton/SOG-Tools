@@ -23,6 +23,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -34,6 +35,7 @@ import (
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/russellhaering/goxmldsig/etreeutils"
 	"golang.org/x/net/html"
+	"software.sslmate.com/src/go-pkcs12"
 )
 
 const (
@@ -60,6 +62,8 @@ type args struct {
 	LoginURL               string
 	LoginMethod            string
 	LoginPayloadFormat     string
+	ClientP12File          string
+	ClientP12Password      string
 	Timeout                time.Duration
 	ResponseTimeout        time.Duration
 	SkipResponseValidation bool
@@ -178,12 +182,14 @@ func parseArgs() (*args, error) {
 	flag.StringVar(&a.LoginURL, "login-url", "", "Login endpoint override")
 	flag.StringVar(&a.LoginMethod, "login-method", "POST", "POST or PUT")
 	flag.StringVar(&a.LoginPayloadFormat, "login-payload-format", "json", "json or form")
+	flag.StringVar(&a.ClientP12File, "client-p12", "", "Client certificate and private key in PKCS#12 format")
 	timeoutSeconds := flag.Float64("timeout", 30.0, "HTTP timeout seconds")
 	responseTimeoutSeconds := flag.Float64("response-timeout", 30.0, "ACS response timeout seconds")
 	flag.BoolVar(&a.SkipResponseValidation, "skip-response-validation", false, "Skip SAMLResponse validation")
 	flag.BoolVar(&a.InsecureTLS, "insecure-tls", false, "Disable TLS verification")
 	flag.BoolVar(&a.Verbose, "verbose", false, "Verbose logging")
 	flag.Parse()
+	a.ClientP12Password = os.Getenv("DUMMY_SAML_P12_PASSWORD")
 
 	a.Binding = strings.ToLower(a.Binding)
 	a.LoginMethod = strings.ToUpper(a.LoginMethod)
@@ -504,17 +510,190 @@ func findLoginFormAction(forms []formData) string {
 }
 
 func submitRequest(client *http.Client, method, target string, headers map[string]string, body io.Reader, contentType string) (*http.Response, error) {
+	requestHeaders := headers
+	if _, mtlsEnabled := client.Transport.(*mtlsDomainTransport); mtlsEnabled {
+		target = rewriteMTLSURL(target)
+		requestHeaders = make(map[string]string, len(headers))
+		for name, value := range headers {
+			requestHeaders[name] = value
+		}
+		for name, value := range requestHeaders {
+			if strings.EqualFold(name, "Origin") || strings.EqualFold(name, "Referer") {
+				requestHeaders[name] = rewriteMTLSURL(value)
+			}
+		}
+	}
+
 	req, err := http.NewRequest(method, target, body)
 	if err != nil {
 		return nil, err
 	}
-	for k, v := range headers {
+	for k, v := range requestHeaders {
 		req.Header.Set(k, v)
 	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
 	return client.Do(req)
+}
+
+type mtlsDomainTransport struct {
+	base http.RoundTripper
+}
+
+func (t *mtlsDomainTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return t.base.RoundTrip(request)
+}
+
+func rewriteMTLSURL(rawURL string) string {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil || !strings.EqualFold(parsedURL.Scheme, "https") {
+		return rawURL
+	}
+
+	host := parsedURL.Hostname()
+	const oldDomain = "ids-dev.solitonsys.jp"
+	lowerHost := strings.ToLower(host)
+	if !strings.HasSuffix(lowerHost, oldDomain) {
+		return rawURL
+	}
+	prefixLength := len(host) - len(oldDomain)
+	if prefixLength > 0 && host[prefixLength-1] != '.' {
+		return rawURL
+	}
+	newHost := host[:prefixLength] + "ids-dev-s.solitonsys.jp"
+	if port := parsedURL.Port(); port != "" {
+		parsedURL.Host = net.JoinHostPort(newHost, port)
+	} else {
+		parsedURL.Host = newHost
+	}
+	return parsedURL.String()
+}
+
+func rewriteMTLSRedirect(request *http.Request, previousRequests []*http.Request) error {
+	if len(previousRequests) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+
+	updatedURL := rewriteMTLSURL(request.URL.String())
+	if updatedURL != request.URL.String() {
+		parsedURL, err := url.Parse(updatedURL)
+		if err != nil {
+			return err
+		}
+		request.URL = parsedURL
+		request.Host = ""
+	}
+	for name, values := range request.Header {
+		if strings.EqualFold(name, "Origin") || strings.EqualFold(name, "Referer") {
+			for index, value := range values {
+				values[index] = rewriteMTLSURL(value)
+			}
+		}
+	}
+	return nil
+}
+
+func loadPKCS12Certificate(path, password string) (tls.Certificate, error) {
+	pfxData, err := os.ReadFile(path)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("read client PKCS#12 file: %w", err)
+	}
+
+	privateKey, certificate, caCertificates, err := pkcs12.DecodeChain(pfxData, password)
+	if err != nil {
+		return loadPKCS12CertificateWithOpenSSL(path, password, err)
+	}
+	if certificate == nil {
+		return tls.Certificate{}, errors.New("client PKCS#12 file does not contain a client certificate")
+	}
+
+	certificateChain := make([][]byte, 0, 1+len(caCertificates))
+	certificateChain = append(certificateChain, certificate.Raw)
+	for _, caCertificate := range caCertificates {
+		certificateChain = append(certificateChain, caCertificate.Raw)
+	}
+
+	return tls.Certificate{
+		Certificate: certificateChain,
+		PrivateKey:  privateKey,
+		Leaf:        certificate,
+	}, nil
+}
+
+func loadPKCS12CertificateWithOpenSSL(path, password string, decodeError error) (tls.Certificate, error) {
+	command := exec.Command("openssl", "pkcs12", "-legacy", "-in", path, "-nodes", "-passin", "stdin")
+	command.Stdin = strings.NewReader(password + "\n")
+
+	output, err := command.Output()
+	if err != nil {
+		var exitError *exec.ExitError
+		if errors.As(err, &exitError) {
+			return tls.Certificate{}, fmt.Errorf(
+				"Go PKCS#12 decoder failed (%v); OpenSSL fallback failed: %s",
+				decodeError,
+				strings.TrimSpace(string(exitError.Stderr)),
+			)
+		}
+		return tls.Certificate{}, fmt.Errorf(
+			"Go PKCS#12 decoder failed (%v); OpenSSL fallback unavailable: %w",
+			decodeError,
+			err,
+		)
+	}
+
+	var certificatePEM [][]byte
+	var privateKeyPEM [][]byte
+	for rest := output; len(rest) > 0; {
+		block, remaining := pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		rest = remaining
+
+		encodedBlock := pem.EncodeToMemory(block)
+		switch block.Type {
+		case "CERTIFICATE":
+			certificatePEM = append(certificatePEM, encodedBlock)
+		case "PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY":
+			privateKeyPEM = append(privateKeyPEM, encodedBlock)
+		}
+	}
+
+	for _, keyPEM := range privateKeyPEM {
+		for leafIndex, leafPEM := range certificatePEM {
+			pair, err := tls.X509KeyPair(leafPEM, keyPEM)
+			if err != nil {
+				continue
+			}
+
+			pair.Leaf, err = x509.ParseCertificate(pair.Certificate[0])
+			if err != nil {
+				return tls.Certificate{}, fmt.Errorf("parse client certificate from OpenSSL output: %w", err)
+			}
+
+			for index, caPEM := range certificatePEM {
+				if index == leafIndex {
+					continue
+				}
+				caBlock, _ := pem.Decode(caPEM)
+				if caBlock == nil {
+					continue
+				}
+				caCertificate, err := x509.ParseCertificate(caBlock.Bytes)
+				if err == nil && pair.Leaf.CheckSignatureFrom(caCertificate) == nil {
+					pair.Certificate = append(pair.Certificate, caCertificate.Raw)
+				}
+			}
+
+			return pair, nil
+		}
+	}
+
+	return tls.Certificate{}, fmt.Errorf(
+		"Go PKCS#12 decoder failed (%v); OpenSSL output did not contain a matching certificate and private key",
+		decodeError,
+	)
 }
 
 func submitSAMLResponseForm(client *http.Client, htmlText, baseURL string, timeout time.Duration) (bool, error) {
@@ -711,7 +890,7 @@ func verifySAMLResponse(samlResponseB64 string, metadata *idpMetadata, reqCtx sa
 	return nil
 }
 
-func runSingleTest(a *args, metadata *idpMetadata, store *responseStore, entityID, acsURL string, transport *http.Transport) testResult {
+func runSingleTest(a *args, metadata *idpMetadata, store *responseStore, entityID, acsURL string, transport http.RoundTripper) testResult {
 	started := time.Now()
 	ssoURL := metadata.SSORedirectURL
 	if a.Binding == "post" {
@@ -727,6 +906,9 @@ func runSingleTest(a *args, metadata *idpMetadata, store *responseStore, entityI
 
 	jar, _ := cookiejar.New(nil)
 	client := &http.Client{Timeout: a.Timeout, Transport: transport, Jar: jar}
+	if _, mtlsEnabled := transport.(*mtlsDomainTransport); mtlsEnabled {
+		client.CheckRedirect = rewriteMTLSRedirect
+	}
 
 	xmlReq, err := buildAuthnRequestXML(ctx, entityID, acsURL, ssoURL)
 	if err != nil {
@@ -903,6 +1085,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	var clientCertificates []tls.Certificate
+	if a.ClientP12File != "" {
+		clientCertificate, err := loadPKCS12Certificate(a.ClientP12File, a.ClientP12Password)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		clientCertificates = append(clientCertificates, clientCertificate)
+	}
+
 	localACSURL := fmt.Sprintf("http://%s:%d/acs", a.SPHost, a.SPPort)
 	acsURL := a.ACSURL
 	if acsURL == "" {
@@ -935,11 +1127,19 @@ func main() {
 	fmt.Printf("SP ACS URL: %s\n", acsURL)
 	fmt.Printf("SP metadata URL: http://%s:%d/metadata\n", a.SPHost, a.SPPort)
 
-	transport := &http.Transport{
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: a.InsecureTLS,
+		Certificates:       clientCertificates,
+	}
+	baseTransport := &http.Transport{
 		MaxConnsPerHost:     a.Threads,
 		MaxIdleConns:        a.Threads,
 		MaxIdleConnsPerHost: a.Threads,
-		TLSClientConfig:     &tls.Config{InsecureSkipVerify: a.InsecureTLS},
+		TLSClientConfig:     tlsConfig,
+	}
+	var transport http.RoundTripper = baseTransport
+	if len(clientCertificates) > 0 {
+		transport = &mtlsDomainTransport{base: baseTransport}
 	}
 
 	type job struct {
